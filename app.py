@@ -3,14 +3,14 @@ import pandas as pd
 import numpy as np
 from sklearn.linear_model import Ridge
 from sklearn.pipeline import make_pipeline
-from category_encoders import OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 import plotly.express as px
 
 # -----------------------------------------------------------------------------
-# 1. HELPER FUNCTIONS (DEFINED AT THE TOP)
+# 1. HELPER FUNCTIONS
 # -----------------------------------------------------------------------------
 def format_crore_lakh(amount):
     if amount >= 10_000_000:
@@ -105,7 +105,7 @@ if df is None:
     st.stop()
 
 # -----------------------------------------------------------------------------
-# 4. MODEL TRAINING
+# 4. MODEL TRAINING (UPDATED TO REMOVE BROKEN LIBRARY)
 # -----------------------------------------------------------------------------
 @st.cache_resource
 def train_model(df):
@@ -115,12 +115,25 @@ def train_model(df):
     
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
     
+    # NEW LOGIC: Use ColumnTransformer instead of category_encoders
+    categorical_features = ['Neighborhood']
+    numerical_features = ['Size', 'Bedrooms', 'Bathrooms']
+
+    preprocessor = ColumnTransformer(
+        transformers=[
+            ('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False), categorical_features),
+            ('num', 'passthrough', numerical_features)
+        ],
+        verbose_feature_names_out=False # This keeps names clean like "Neighborhood_Clifton"
+    )
+
     model = make_pipeline(
-        OneHotEncoder(use_cat_names=True, handle_unknown="ignore"), 
+        preprocessor,
         SimpleImputer(strategy="mean"),
         StandardScaler(), 
         Ridge()
     )
+    
     model.fit(X_train, y_train)
     return model
 
@@ -180,10 +193,18 @@ if submit_button:
         
     st.markdown("---")
     st.subheader("What drives this price?")
+    
+    # Updated logic for Feature Importance with standard Sklearn
     coefs = model.named_steps['ridge'].coef_
-    names = model.named_steps['onehotencoder'].get_feature_names_out()
+    # We access the column transformer step
+    preprocessor_step = model.named_steps['columntransformer']
+    names = preprocessor_step.get_feature_names_out()
+    
     feat_df = pd.DataFrame({'Feature': names, 'Impact': coefs})
+    
+    # Filter for the relevant features for this specific prediction
     relevant = feat_df[feat_df['Feature'].isin(['Size', 'Bedrooms', 'Bathrooms', f'Neighborhood_{neighborhood}'])].sort_values(by="Impact")
+    
     fig_imp = px.bar(relevant, x='Impact', y='Feature', orientation='h', title="Feature Impact", color='Impact', color_continuous_scale='Teal')
     st.plotly_chart(fig_imp, use_container_width=True)
 
@@ -193,8 +214,5 @@ else:
     st.subheader("Dataset Overview")
     col1, col2, col3 = st.columns(3)
     col1.metric("Total Properties", f"{len(df):,}")
-    
-    # This calls the function defined at the very top.
     col2.metric("Average Price", format_crore_lakh(df["Price"].mean()))
-    
     col3.metric("Locations", len(df["Neighborhood"].unique()))
