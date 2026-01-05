@@ -10,7 +10,20 @@ from sklearn.model_selection import train_test_split
 import plotly.express as px
 
 # -----------------------------------------------------------------------------
-# 1. PAGE CONFIGURATION & CUSTOM CSS
+# 1. HELPER FUNCTIONS (DEFINED AT THE TOP)
+# -----------------------------------------------------------------------------
+def format_crore_lakh(amount):
+    if amount >= 10_000_000:
+        val = amount / 10_000_000
+        return f"{val:.2f} Crore"
+    elif amount >= 100_000:
+        val = amount / 100_000
+        return f"{val:.2f} Lakh"
+    else:
+        return f"{amount:,.0f} PKR"
+
+# -----------------------------------------------------------------------------
+# 2. PAGE CONFIGURATION
 # -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="Karachi Estate AI",
@@ -45,19 +58,6 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
-
-# -----------------------------------------------------------------------------
-# 2. HELPER FUNCTIONS (MOVED TO TOP TO FIX ERROR)
-# -----------------------------------------------------------------------------
-def format_crore_lakh(amount):
-    if amount >= 10_000_000:
-        val = amount / 10_000_000
-        return f"{val:.2f} Crore"
-    elif amount >= 100_000:
-        val = amount / 100_000
-        return f"{val:.2f} Lakh"
-    else:
-        return f"{amount:,.0f} PKR"
 
 # -----------------------------------------------------------------------------
 # 3. DATA LOADING
@@ -194,7 +194,7 @@ else:
     col1, col2, col3 = st.columns(3)
     col1.metric("Total Properties", f"{len(df):,}")
     
-    # This line works now because 'format_crore_lakh' is defined at the top of the file
+    # This calls the function defined at the very top.
     col2.metric("Average Price", format_crore_lakh(df["Price"].mean()))
     
     col3.metric("Locations", len(df["Neighborhood"].unique()))
