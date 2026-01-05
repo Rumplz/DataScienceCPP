@@ -8,14 +8,12 @@ from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 import plotly.express as px
-import plotly.graph_objects as go
 
 # -----------------------------------------------------------------------------
-# 1. PAGE CONFIGURATION & CUSTOM CSS (The "Premium" Look)
+# 1. PAGE CONFIGURATION & CUSTOM CSS
 # -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="Karachi Estate AI",
-    page_icon="nt",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -70,7 +68,20 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
-# 2. DATA LOADING & PREPROCESSING (Cached for Speed)
+# 2. HELPER FUNCTIONS
+# -----------------------------------------------------------------------------
+def format_crore_lakh(amount):
+    if amount >= 10_000_000:
+        val = amount / 10_000_000
+        return f"{val:.2f} Crore"
+    elif amount >= 100_000:
+        val = amount / 100_000
+        return f"{val:.2f} Lakh"
+    else:
+        return f"{amount:,.0f} PKR"
+
+# -----------------------------------------------------------------------------
+# 3. DATA LOADING & PREPROCESSING (Cached)
 # -----------------------------------------------------------------------------
 @st.cache_data
 def load_and_clean_data():
@@ -78,9 +89,9 @@ def load_and_clean_data():
         df = pd.read_csv("Karachi_Property_Dataset.csv")
     except FileNotFoundError:
         st.error("Dataset not found! Please ensure 'Karachi_Property_Dataset.csv' is in the directory.")
-        return None, None
+        return None
 
-    # Helper function for price conversion
+    # Helper function for cleaning price column inside the loader
     def convert_price(x):
         if pd.isna(x) or str(x).strip().lower() in ["na", "nan", "none", ""]:
             return np.nan
@@ -119,7 +130,7 @@ def load_and_clean_data():
 df = load_and_clean_data()
 
 # -----------------------------------------------------------------------------
-# 3. MODEL TRAINING (Cached)
+# 4. MODEL TRAINING (Cached)
 # -----------------------------------------------------------------------------
 @st.cache_resource
 def train_model(df):
@@ -139,17 +150,17 @@ def train_model(df):
     )
     
     model.fit(X_train, y_train)
-    return model, features
+    return model
 
 if df is not None:
-    model, model_features = train_model(df)
+    model = train_model(df)
 else:
     st.stop()
 
 # -----------------------------------------------------------------------------
-# 4. SIDEBAR - USER INPUTS
+# 5. SIDEBAR - USER INPUTS
 # -----------------------------------------------------------------------------
-st.sidebar.header("🏡 Property Details")
+st.sidebar.header("Property Details")
 st.sidebar.markdown("Configure the property parameters below:")
 
 with st.sidebar.form("prediction_form"):
@@ -162,10 +173,10 @@ with st.sidebar.form("prediction_form"):
     bedrooms = st.slider("Bedrooms", 1, 10, 3)
     bathrooms = st.slider("Bathrooms", 1, 10, 2)
     
-    submit_button = st.form_submit_button("💰 Predict Price")
+    submit_button = st.form_submit_button("Predict Price")
 
 # -----------------------------------------------------------------------------
-# 5. MAIN DASHBOARD
+# 6. MAIN DASHBOARD
 # -----------------------------------------------------------------------------
 st.title("Karachi Real Estate AI Validator")
 st.markdown("### Intelligent Property Valuation Engine")
@@ -184,18 +195,6 @@ if submit_button:
     with st.spinner("Calculating market valuation..."):
         prediction = model.predict(input_data)[0]
 
-    # --- Formatting the Result ---
-    # Helper to format large numbers nicely
-    def format_crore_lakh(amount):
-        if amount >= 10_000_000:
-            val = amount / 10_000_000
-            return f"{val:.2f} Crore"
-        elif amount >= 100_000:
-            val = amount / 100_000
-            return f"{val:.2f} Lakh"
-        else:
-            return f"{amount:,.0f} PKR"
-
     formatted_price = format_crore_lakh(prediction)
     
     # Calculate comparisons
@@ -210,12 +209,16 @@ if submit_button:
         st.subheader("Estimated Value")
         st.metric(label="Predicted Market Price", value=formatted_price)
         
+        # Comparison logic with simple colors instead of emojis
+        status_color = "red" if diff_percent > 0 else "green"
+        status_text = "Higher" if diff_percent > 0 else "Lower"
+        
         st.markdown(f"""
         <div style='background-color: #f1f3f4; padding: 15px; border-radius: 5px; font-size: 0.9em;'>
             <strong>Quick Stats for {neighborhood}:</strong><br>
             • Avg Price: {format_crore_lakh(avg_neighbor_price)}<br>
-            • This property is <span style='color: {"red" if diff_percent > 0 else "green"};'>
-            {abs(diff_percent):.1f}% {'Higher' if diff_percent > 0 else 'Lower'}</span> than the area average.
+            • This property is <span style='color: {status_color};'>
+            {abs(diff_percent):.1f}% {status_text}</span> than the area average.
         </div>
         """, unsafe_allow_html=True)
 
@@ -236,7 +239,6 @@ if submit_button:
         # Add a vertical line for the predicted price
         fig.add_vline(x=prediction, line_dash="dash", line_color="#e74c3c", annotation_text="Your Prediction")
         
-        # Clean up the chart look
         fig.update_layout(
             xaxis_title="Price (PKR)",
             yaxis_title="Count of Properties",
@@ -250,15 +252,11 @@ if submit_button:
     st.markdown("---")
     st.subheader("What is driving this price?")
     
-    # Extract coefficients
     coefficients = model.named_steps['ridge'].coef_
     features_names = model.named_steps['onehotencoder'].get_feature_names_out()
     
-    # Create a nice dataframe for plotting
     feat_df = pd.DataFrame({'Feature': features_names, 'Impact': coefficients})
     
-    # Filter for relevant features (Size, Rooms, and specific Neighborhood impact)
-    # We highlight the impact of the selected neighborhood specifically
     relevant_feats = feat_df[
         feat_df['Feature'].isin(['Size', 'Bedrooms', 'Bathrooms', f'Neighborhood_{neighborhood}'])
     ].sort_values(by="Impact", ascending=True)
@@ -277,7 +275,7 @@ if submit_button:
 
 else:
     # Default landing state
-    st.info("👈 Please enter the property details in the sidebar and click 'Predict Price' to begin.")
+    st.info("Please enter the property details in the sidebar and click 'Predict Price' to begin.")
     
     # Show a general dataset overview
     st.subheader("Dataset Overview")
