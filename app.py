@@ -47,7 +47,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
-# 2. HELPER FUNCTIONS (MUST BE DEFINED HERE)
+# 2. HELPER FUNCTIONS (MOVED TO TOP TO FIX ERROR)
 # -----------------------------------------------------------------------------
 def format_crore_lakh(amount):
     if amount >= 10_000_000:
@@ -193,6 +193,8 @@ else:
     st.subheader("Dataset Overview")
     col1, col2, col3 = st.columns(3)
     col1.metric("Total Properties", f"{len(df):,}")
-    # This line was causing the error, now it works because the function is defined above
+    
+    # This line works now because 'format_crore_lakh' is defined at the top of the file
     col2.metric("Average Price", format_crore_lakh(df["Price"].mean()))
+    
     col3.metric("Locations", len(df["Neighborhood"].unique()))
